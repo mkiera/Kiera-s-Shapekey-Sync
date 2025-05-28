@@ -142,6 +142,25 @@ def _update_preview(context):
             if obj.data.shape_keys and key in obj.data.shape_keys.key_blocks:
                 obj.data.shape_keys.key_blocks[key].value = val
 
+def _refresh_key_list(context):
+    """Refresh the key list based on current source and target objects."""
+    scn = context.scene
+    scn.sync_items.clear()
+    names = set()
+    if scn.sync_src_obj and scn.sync_src_obj.data.shape_keys:
+        names.update(scn.sync_src_obj.data.shape_keys.key_blocks.keys())
+    for t in scn.sync_targets:
+        if t.obj and t.obj.data.shape_keys:
+            names.update(t.obj.data.shape_keys.key_blocks.keys())
+    for name in sorted(names):
+        itm = scn.sync_items.add()
+        itm.name = name
+        itm.use = True
+
+def _source_obj_update(self, context):
+    """Update key list when source object changes."""
+    _refresh_key_list(context)
+
 # ------------------------------------------------------------------------
 #    Foldout Helper
 # ------------------------------------------------------------------------
@@ -181,18 +200,7 @@ class SHAPEKEYSYNC_OT_refresh(bpy.types.Operator):
     bl_idname = "shapekey_sync.refresh_list"
     bl_label = "Refresh Key List"
     def execute(self, context):
-        scn = context.scene
-        scn.sync_items.clear()
-        names = set()
-        if scn.sync_src_obj and scn.sync_src_obj.data.shape_keys:
-            names.update(scn.sync_src_obj.data.shape_keys.key_blocks.keys())
-        for t in scn.sync_targets:
-            if t.obj and t.obj.data.shape_keys:
-                names.update(t.obj.data.shape_keys.key_blocks.keys())
-        for name in sorted(names):
-            itm = scn.sync_items.add()
-            itm.name = name
-            itm.use = True
+        _refresh_key_list(context)
         return {'FINISHED'}
 
 class SHAPEKEYSYNC_OT_sync(bpy.types.Operator):
@@ -430,7 +438,10 @@ classes = [
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.sync_src_obj = bpy.props.PointerProperty(type=bpy.types.Object)
+    bpy.types.Scene.sync_src_obj = bpy.props.PointerProperty(
+        type=bpy.types.Object,
+        update=_source_obj_update
+    )
     bpy.types.Scene.sync_targets = bpy.props.CollectionProperty(type=TargetItem)
     bpy.types.Scene.sync_target_index = bpy.props.IntProperty()
     bpy.types.Scene.sync_items = bpy.props.CollectionProperty(type=SyncItem)
